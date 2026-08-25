@@ -45,3 +45,6 @@ As of 2026-08-25, the production assistant at `bridgetime.org` is disabled. Pass
 not prove which code, configuration, model, retention policy, or subprocessors a live site uses.
 Before production activation, BridgeTime would need an updated privacy notice, provider/legal
 review, operational controls, and deployment-specific verification.
+
+Provider-side retention, training, contract and data-location questions remain outside this code
+boundary. Review [`PROVIDER_DUE_DILIGENCE.md`](PROVIDER_DUE_DILIGENCE.md) before activation.

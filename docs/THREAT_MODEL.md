@@ -18,17 +18,18 @@
 
 ## In-scope threats and controls
 
-| Threat                                          | Control in this repo                                             |
-| ----------------------------------------------- | ---------------------------------------------------------------- |
-| Known identity leaves in prompt                 | Per-conversation `S`/`C` alias replacement                       |
-| Supported phone/email leaves in prompt          | `P`/`E` pattern replacement plus second scan                     |
-| Alias map accidentally serialized               | Separate types; envelope has no alias-table field; capture tests |
-| Model chooses another tenant                    | No tenant/merchant argument in tool schemas                      |
-| Model performs a write                          | Fixed allowlist of three read-only tools; no executor included   |
-| Tool result leaks a name or ID                  | Runtime-constrained aliased serializer                           |
-| Endpoint is changed to HTTP or a lookalike host | HTTPS, port and exact-host validation                            |
-| Error handling reflects request/provider body   | Fixed error messages and metadata-only projection                |
-| API key appears in offline captures             | Capture transport intentionally drops credentials                |
+| Threat                                          | Control in this repo                                              |
+| ----------------------------------------------- | ----------------------------------------------------------------- |
+| Known identity leaves in prompt                 | Per-conversation `S`/`C` alias replacement                        |
+| Supported phone/email leaves in prompt          | `P`/`E` pattern replacement plus second scan                      |
+| Alias map accidentally serialized               | Separate types; envelope has no alias-table field; capture tests  |
+| Model chooses another tenant                    | No tenant/merchant argument in tool schemas                       |
+| Model performs a write                          | Fixed allowlist of three read-only tools; no executor included    |
+| Tool result leaks a name or ID                  | Runtime-constrained aliased serializer                            |
+| Endpoint is changed to HTTP or a lookalike host | HTTPS, port and exact-host validation                             |
+| Allowlisted endpoint redirects to another host  | Fetch redirect mode is `error`; credentials/body are not followed |
+| Error handling reflects request/provider body   | Fixed error messages and metadata-only projection                 |
+| API key appears in offline captures             | Capture transport intentionally drops credentials                 |
 
 ## Residual and out-of-scope threats
 

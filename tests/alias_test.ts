@@ -29,11 +29,12 @@ Deno.test("full-width phone input is normalized before masking", () => {
   assertEquals(result.table.entries[0].display, "0912000123");
 });
 
-Deno.test("full-width roster names still match normalized user input", () => {
+Deno.test("ASCII and full-width roster names match case-insensitively after normalization", () => {
   const table: AliasTable = {
     entries: [{ token: "S1", type: "staff", id: "staff-1", display: "Ａｍｙ" }],
   };
-  assertEquals(applyAliases("Ａｍｙ 今天上班", table).text, "S1 今天上班");
+  assertEquals(applyAliases("amy 今天上班", table).text, "S1 今天上班");
+  assertEquals(applyAliases("ＡＭＹ 今天上班", table).text, "S1 今天上班");
 });
 
 Deno.test("ASCII names match only as standalone values", () => {
@@ -61,6 +62,13 @@ Deno.test("invalid or duplicate tokens are rejected", () => {
           { token: "S1", type: "staff", id: "staff-2", display: "乙" },
         ],
       }),
+    TypeError,
+  );
+  assertThrows(
+    () =>
+      assertValidAliasTable({
+        entries: [{ token: "E1", type: "unexpected", id: "id-1", display: "value" }],
+      } as unknown as AliasTable),
     TypeError,
   );
 });

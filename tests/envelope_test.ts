@@ -1,6 +1,7 @@
 import { assert, assertEquals, assertFalse, assertStringIncludes, assertThrows } from "@std/assert";
 import {
-  appendAliasedToolResult,
+  appendAliasedToolRoundTrip,
+  assertEgressEnvelopeSafe,
   buildAliasTable,
   buildReadOnlyToolSchemas,
   prepareEgressEnvelopeV1,
@@ -61,9 +62,13 @@ Deno.test("aliased tool result can be appended without names or tenant identifie
     aliasTable,
     tools,
   });
-  const next = appendAliasedToolResult(
+  const next = appendAliasedToolRoundTrip(
     prepared.envelope,
-    "call_synthetic_1",
+    {
+      id: "call_synthetic_1",
+      name: "staff_on_shift",
+      arguments: '{"period":"tomorrow","staff":"S1"}',
+    },
     {
       tool: "staff_on_shift",
       ok: true,
@@ -77,8 +82,139 @@ Deno.test("aliased tool result can be appended without names or tenant identifie
   );
   const serialized = JSON.stringify(next);
   assertStringIncludes(serialized, "call_synthetic_1");
+  assertStringIncludes(serialized, '"role":"assistant"');
+  assertStringIncludes(serialized, '"toolCalls"');
+  assertStringIncludes(serialized, '"role":"tool"');
   assertFalse(serialized.includes("staff-synthetic-1"));
   assertFalse(serialized.includes("merchantId"));
+});
+
+Deno.test("case-folded alias and declared literals are blocked by the guard", () => {
+  const tools = buildReadOnlyToolSchemas({ staffTokens: ["S1"] });
+  const aliasTable = buildAliasTable(
+    [{ id: "staff-case-1", displayName: "Amy" }],
+    [],
+    identity,
+  );
+  const prepared = prepareEgressEnvelopeV1({
+    model: "kimi-k2.6",
+    systemPrompt: "Use opaque tokens.",
+    rawUserText: "請整理明日資料",
+    aliasTable,
+    tools,
+  });
+  const mutated = structuredClone(prepared.envelope);
+  mutated.messages[1] = { role: "user", content: "ａＭＹ" };
+  assertThrows(
+    () => assertEgressEnvelopeSafe(mutated, { aliasTable: prepared.aliasTable }),
+    PrivacyBoundaryError,
+  );
+
+  assertThrows(
+    () =>
+      prepareEgressEnvelopeV1({
+        model: "kimi-k2.6",
+        systemPrompt: "Use opaque tokens.",
+        rawUserText: "secretcode",
+        aliasTable: { entries: [] },
+        tools: buildReadOnlyToolSchemas({ staffTokens: [] }),
+        declaredSensitiveLiterals: ["SecretCode"],
+      }),
+    PrivacyBoundaryError,
+  );
+});
+
+Deno.test("runtime envelope validation rejects mutation after preparation", () => {
+  const { aliasTable, tools } = fixture();
+  const prepared = prepareEgressEnvelopeV1({
+    model: "kimi-k2.6",
+    systemPrompt: "Use read-only tools.",
+    rawUserText: "請整理明日資料",
+    aliasTable,
+    tools,
+  });
+
+  const mutatedTools = structuredClone(prepared.envelope);
+  (mutatedTools.tools[0].function.parameters as Record<string, unknown>).merchantId = {
+    type: "string",
+  };
+  assertThrows(
+    () => assertEgressEnvelopeSafe(mutatedTools, { aliasTable: prepared.aliasTable }),
+    PrivacyBoundaryError,
+  );
+
+  const mutatedMessage = structuredClone(prepared.envelope) as unknown as Record<string, unknown>;
+  (mutatedMessage.messages as Array<Record<string, unknown>>)[1].role = "developer";
+  assertThrows(
+    () =>
+      assertEgressEnvelopeSafe(
+        mutatedMessage as unknown as typeof prepared.envelope,
+        { aliasTable: prepared.aliasTable },
+      ),
+    PrivacyBoundaryError,
+  );
+
+  const extraField = structuredClone(prepared.envelope) as unknown as Record<string, unknown>;
+  extraField.debug = true;
+  assertThrows(
+    () =>
+      assertEgressEnvelopeSafe(
+        extraField as unknown as typeof prepared.envelope,
+        { aliasTable: prepared.aliasTable },
+      ),
+    PrivacyBoundaryError,
+  );
+
+  const badModel = structuredClone(prepared.envelope);
+  badModel.model = "model name with spaces";
+  assertThrows(
+    () => assertEgressEnvelopeSafe(badModel, { aliasTable: prepared.aliasTable }),
+    PrivacyBoundaryError,
+  );
+
+  const oversized = structuredClone(prepared.envelope);
+  oversized.messages[1] = { role: "user", content: "x".repeat(2_001) };
+  assertThrows(
+    () => assertEgressEnvelopeSafe(oversized, { aliasTable: prepared.aliasTable }),
+    PrivacyBoundaryError,
+  );
+});
+
+Deno.test("tool call IDs and call/result tool names are runtime validated", () => {
+  const { aliasTable, tools } = fixture();
+  const prepared = prepareEgressEnvelopeV1({
+    model: "kimi-k2.6",
+    systemPrompt: "Use read-only tools.",
+    rawUserText: "請整理明日資料",
+    aliasTable,
+    tools,
+  });
+  const result = {
+    tool: "staff_on_shift" as const,
+    ok: true as const,
+    days: [],
+    skippedUnknownStaff: 0,
+  };
+  assertThrows(
+    () =>
+      appendAliasedToolRoundTrip(
+        prepared.envelope,
+        { id: "bad id", name: "staff_on_shift", arguments: "{}" },
+        result,
+        { aliasTable: prepared.aliasTable },
+      ),
+    PrivacyBoundaryError,
+  );
+  assertThrows(
+    () =>
+      appendAliasedToolRoundTrip(
+        prepared.envelope,
+        { id: "call_1", name: "booking_stats", arguments: "{}" },
+        result,
+        { aliasTable: prepared.aliasTable },
+      ),
+    PrivacyBoundaryError,
+  );
 });
 
 Deno.test("declared residuals fail closed even when no detector understands their meaning", () => {
@@ -107,7 +243,7 @@ Deno.test("a residual Taiwan ID-shaped value fails closed", () => {
       prepareEgressEnvelopeV1({
         model: "kimi-k2.6",
         systemPrompt: "Use read-only tools.",
-        rawUserText: "未分類代碼 A123456789",
+        rawUserText: "未分類合成代碼 A100000000",
         aliasTable,
         tools,
       }),

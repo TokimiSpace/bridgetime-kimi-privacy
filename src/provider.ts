@@ -5,6 +5,7 @@ import {
   type EgressGuard,
 } from "./envelope.ts";
 import { SafeProviderError } from "./errors.ts";
+import { canonicalizeReadOnlyToolCall, type ReadOnlyToolCall } from "./tools.ts";
 
 export const KIMI_ALLOWED_HOSTS = ["api.moonshot.ai"] as const;
 
@@ -26,6 +27,7 @@ export interface ProviderTransport {
 export interface AssistantReply {
   role: "assistant";
   content: string;
+  toolCalls: ReadOnlyToolCall[];
 }
 
 export function resolveChatCompletionsUrl(
@@ -55,11 +57,27 @@ export function resolveChatCompletionsUrl(
 function toWireBody(envelope: EgressEnvelopeV1): string {
   return JSON.stringify({
     model: envelope.model,
-    messages: envelope.messages.map((message) => ({
-      role: message.role,
-      content: message.content,
-      ...(message.toolCallId ? { tool_call_id: message.toolCallId } : {}),
-    })),
+    messages: envelope.messages.map((message) => {
+      if (message.role === "assistant" && message.toolCalls) {
+        return {
+          role: "assistant",
+          content: message.content || null,
+          tool_calls: message.toolCalls.map((call) => ({
+            id: call.id,
+            type: "function",
+            function: { name: call.name, arguments: call.arguments },
+          })),
+        };
+      }
+      if (message.role === "tool") {
+        return {
+          role: "tool",
+          content: message.content,
+          tool_call_id: message.toolCallId,
+        };
+      }
+      return { role: message.role, content: message.content };
+    }),
     tools: envelope.tools,
   });
 }
@@ -104,8 +122,29 @@ export async function sendEgressEnvelope(input: {
     const choice = value.choices[0];
     if (!isRecord(choice) || !isRecord(choice.message)) throw new Error();
     const content = choice.message.content;
-    if (typeof content !== "string") throw new Error();
-    return { role: "assistant", content };
+    const rawCalls = choice.message.tool_calls;
+    if (rawCalls !== undefined && (!Array.isArray(rawCalls) || rawCalls.length !== 1)) {
+      throw new Error();
+    }
+    const toolCalls = rawCalls === undefined ? [] : rawCalls.map((rawCall) => {
+      if (!isRecord(rawCall) || rawCall.type !== "function" || !isRecord(rawCall.function)) {
+        throw new Error();
+      }
+      return canonicalizeReadOnlyToolCall({
+        id: rawCall.id,
+        name: rawCall.function.name,
+        arguments: rawCall.function.arguments,
+      }, input.envelope.tools);
+    });
+    if (typeof content !== "string" && !(content === null && toolCalls.length === 1)) {
+      throw new Error();
+    }
+    if (
+      (content ?? "").length > 20_000 || ((content ?? "").length === 0 && toolCalls.length === 0)
+    ) {
+      throw new Error();
+    }
+    return { role: "assistant", content: content ?? "", toolCalls };
   } catch {
     // Never expose `response.body`; it may echo user content or provider internals.
     throw new SafeProviderError("invalid_response", response.status);
@@ -117,11 +156,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export class FetchTransport implements ProviderTransport {
+  constructor(private readonly fetchFn: typeof fetch = fetch) {}
+
   async send(request: ProviderHttpRequest): Promise<ProviderHttpResponse> {
     let response: Response;
     try {
-      response = await fetch(request.url, {
+      response = await this.fetchFn(request.url, {
         method: "POST",
+        // Never forward the authorization header or body to a redirect target.
+        redirect: "error",
         headers: {
           "Authorization": `Bearer ${request.apiKey}`,
           "Content-Type": "application/json",

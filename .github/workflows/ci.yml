@@ -4,16 +4,41 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DENO_NO_UPDATE_CHECK: "1"
+
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: denoland/setup-deno@v2
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          deno-version: v2.x
-      - run: deno task verify
+          persist-credentials: false
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: 2.5.6
+
+      - name: Install locked dependencies
+        run: deno install --frozen
+
+      - name: Run verification contract
+        run: deno task verify
+
+      - name: Reject lockfile drift
+        run: git diff --exit-code -- deno.lock
+
+      - name: Audit high-severity dependencies
+        run: deno audit --frozen --level=high

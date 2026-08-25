@@ -28,10 +28,10 @@ capture object has no API-key or authorization field.
 - `tests/envelope_test.ts`: explicitly iterates over every synthetic raw sensitive value and asserts
   that none occurs in serialized `EgressEnvelopeV1`.
 - `tests/provider_test.ts`: inspects the actual wire body given to transport, tests exact host
-  validation, verifies that captures omit the key, and proves error text cannot echo a provider
-  body.
+  validation, verifies a correctly paired assistant `tool_calls` + local `tool` result round trip,
+  confirms that captures omit the key, and proves error text cannot echo a provider body.
 - `tests/tools_test.ts`: checks the fixed read-only allowlist, absence of `merchantId`, and
-  rejection of arbitrary free text in aliased results.
+  rejection of arbitrary tool arguments, error codes, statuses, and free text in aliased results.
 - `tests/alias_test.ts`: covers normalization, pseudonymization, round-trip restoration,
   immutability, and malformed tables.
 

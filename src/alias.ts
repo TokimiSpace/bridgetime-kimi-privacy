@@ -170,7 +170,8 @@ function findNameCandidates(
     const pattern = isPureAscii(normalizedName)
       ? `(?<![A-Za-z0-9])${escaped}(?![A-Za-z0-9])`
       : escaped;
-    for (const match of text.matchAll(new RegExp(pattern, "g"))) {
+    const flags = isPureAscii(normalizedName) ? "gi" : "g";
+    for (const match of text.matchAll(new RegExp(pattern, flags))) {
       const start = match.index ?? 0;
       candidates.push({ start, end: start + normalizedName.length, entry });
     }
@@ -216,8 +217,19 @@ export function resolveAlias(table: AliasTable, token: string): AliasEntry | nul
 }
 
 export function assertValidAliasTable(table: AliasTable): void {
+  if (!table || typeof table !== "object" || !Array.isArray(table.entries)) {
+    throw new TypeError("alias table must contain an entries array");
+  }
   const tokens = new Set<string>();
   for (const entry of table.entries) {
+    if (
+      !entry || typeof entry !== "object" ||
+      !(["staff", "customer", "phone", "email"] as readonly unknown[]).includes(entry.type) ||
+      typeof entry.token !== "string" || typeof entry.id !== "string" ||
+      typeof entry.display !== "string"
+    ) {
+      throw new TypeError("alias table contains an invalid entry");
+    }
     const prefix = entry.type === "staff"
       ? "S"
       : entry.type === "customer"

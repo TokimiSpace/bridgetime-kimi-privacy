@@ -28,8 +28,9 @@ flowchart LR
 Anyone can inspect and test these properties:
 
 - Raw known names, supported phone formats, and email addresses are absent from `EgressEnvelopeV1`.
-- The alias table is separate from the provider payload; only tokens such as `S1`, `C1`, `P1`, and
-  `E1` leave the boundary.
+- The alias table is separate from the provider payload. Sensitive values that are successfully
+  replaced leave only as tokens such as `S1`, `C1`, `P1`, and `E1`; remaining meaning, dates, time
+  ranges, and aggregates are still sent to the model.
 - Three fixed read-only tool schemas expose no `merchantId`, database access, or write action.
 - Tool results contain dates, counts, status codes, minute ranges, and opaque tokens only.
 - A second egress scan blocks declared or detected residual values before transport.
@@ -42,7 +43,8 @@ This is reversible **pseudonymization**, not anonymization. Unknown names, addre
 formats, and sensitive meaning in free text may evade rule-based detection. Fail-closed behavior
 applies to declared or detected residuals; it cannot magically identify all personal data. Read
 [Privacy limitations](docs/PRIVACY_LIMITATIONS.md) and the [Threat model](docs/THREAT_MODEL.md)
-before adapting the code.
+before adapting the code. Complete the [Kimi provider due diligence](docs/PROVIDER_DUE_DILIGENCE.md)
+before enabling any real provider.
 
 ## Verify in 30 seconds
 
@@ -66,6 +68,7 @@ docs/      data flow, threat model, limitations, source mapping, reproduction
 ```
 
 Suggested path: [`DATA_FLOW.md`](docs/DATA_FLOW.md) → [`VERIFY.md`](docs/VERIFY.md) →
+[`PROVIDER_DUE_DILIGENCE.md`](docs/PROVIDER_DUE_DILIGENCE.md) →
 [`SOURCE_MAPPING.md`](docs/SOURCE_MAPPING.md).
 
 ## License and marks

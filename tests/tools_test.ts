@@ -3,6 +3,7 @@ import {
   type AliasedToolResult,
   assertCanonicalReadOnlyToolSchemas,
   buildReadOnlyToolSchemas,
+  canonicalizeReadOnlyToolCall,
   READ_ONLY_TOOL_NAMES,
   serializeAliasedToolResult,
 } from "../src/mod.ts";
@@ -74,7 +75,60 @@ Deno.test("serializer rejects free-text fields disguised as tokens or statuses",
         ok: true,
         total: 1,
         byStatus: { "free text": 1 },
-      }),
+      } as unknown as AliasedToolResult),
+    TypeError,
+  );
+  assertThrows(
+    () =>
+      serializeAliasedToolResult({
+        tool: "booking_stats",
+        ok: true,
+        total: 1,
+        byStatus: { invented_status: 1 },
+      } as unknown as AliasedToolResult),
+    TypeError,
+  );
+  assertThrows(
+    () =>
+      serializeAliasedToolResult({
+        tool: "booking_stats",
+        ok: false,
+        error: "raw provider text",
+      } as unknown as AliasedToolResult),
+    TypeError,
+  );
+});
+
+Deno.test("tool calls accept only fixed names, keys, periods and schema tokens", () => {
+  const tools = buildReadOnlyToolSchemas({ staffTokens: ["S1"], serviceTokens: ["V1"] });
+  assertEquals(
+    canonicalizeReadOnlyToolCall({
+      id: "call_1",
+      name: "staff_on_shift",
+      arguments: '{"staff":"S1","period":"tomorrow"}',
+    }, tools),
+    {
+      id: "call_1",
+      name: "staff_on_shift",
+      arguments: '{"period":"tomorrow","staff":"S1"}',
+    },
+  );
+  assertThrows(
+    () =>
+      canonicalizeReadOnlyToolCall({
+        id: "call_2",
+        name: "booking_stats",
+        arguments: '{"period":"today","merchantId":"tenant-1"}',
+      }, tools),
+    TypeError,
+  );
+  assertThrows(
+    () =>
+      canonicalizeReadOnlyToolCall({
+        id: "call_3",
+        name: "staff_on_shift",
+        arguments: '{"period":"today","staff":"S999"}',
+      }, tools),
     TypeError,
   );
 });
