@@ -1,0 +1,201 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="1400"
+  height="760"
+  viewBox="0 0 1400 760"
+  role="img"
+  aria-labelledby="title desc"
+>
+  <title id="title">BridgeTime privacy envelope data flow</title>
+  <desc id="desc"
+  >Raw input is normalized and pseudonymized inside the server, placed in a minimal envelope, scanned fail-closed, and sent only through HTTPS to an allowlisted Kimi-compatible endpoint. The alias table stays server-side.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#111827" />
+      <stop offset="0.55" stop-color="#172554" />
+      <stop offset="1" stop-color="#312E81" />
+    </linearGradient>
+    <linearGradient id="safe" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#34D399" />
+      <stop offset="1" stop-color="#22D3EE" />
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#020617" flood-opacity=".35" />
+    </filter>
+    <marker
+      id="arrow"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="8"
+      markerHeight="8"
+      orient="auto-start-reverse"
+    >
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#67E8F9" />
+    </marker>
+    <pattern id="grid" width="36" height="36" patternUnits="userSpaceOnUse">
+      <path d="M36 0H0V36" fill="none" stroke="#94A3B8" stroke-opacity=".08" />
+    </pattern>
+  </defs>
+  <rect width="1400" height="760" rx="30" fill="url(#bg)" />
+  <rect width="1400" height="760" rx="30" fill="url(#grid)" />
+
+  <text
+    x="70"
+    y="76"
+    fill="#F8FAFC"
+    font-family="Inter, system-ui, sans-serif"
+    font-size="38"
+    font-weight="700"
+  >Minimize data before it crosses the trust boundary</text>
+  <text x="70" y="116" fill="#CBD5E1" font-family="Inter, system-ui, sans-serif" font-size="21"
+  >BridgeTime Kimi Privacy Envelope · auditable, offline-testable reference implementation</text>
+
+  <g filter="url(#shadow)" font-family="Inter, system-ui, sans-serif">
+    <rect
+      x="70"
+      y="190"
+      width="224"
+      height="238"
+      rx="22"
+      fill="#1E293B"
+      stroke="#F87171"
+      stroke-width="2"
+    />
+    <circle cx="104" cy="226" r="15" fill="#F87171" />
+    <text x="132" y="234" fill="#F8FAFC" font-size="23" font-weight="700">Raw input</text>
+    <text x="96" y="282" fill="#FCA5A5" font-size="18">Staff: Example Lin</text>
+    <text x="96" y="316" fill="#FCA5A5" font-size="18">Customer: Test Chen</text>
+    <text x="96" y="350" fill="#FCA5A5" font-size="18">Phone: 0912…</text>
+    <text x="96" y="384" fill="#FCA5A5" font-size="18">Email: demo@…</text>
+
+    <rect
+      x="348"
+      y="190"
+      width="224"
+      height="238"
+      rx="22"
+      fill="#1E293B"
+      stroke="#A78BFA"
+      stroke-width="2"
+    />
+    <circle cx="382" cy="226" r="15" fill="#A78BFA" />
+    <text x="410" y="234" fill="#F8FAFC" font-size="23" font-weight="700">Server process</text>
+    <text x="374" y="282" fill="#DDD6FE" font-size="18">Normalize</text>
+    <text x="374" y="318" fill="#DDD6FE" font-size="18">Longest-name-first</text>
+    <text x="374" y="354" fill="#DDD6FE" font-size="18">Mask phone / email</text>
+    <text x="374" y="390" fill="#A7F3D0" font-size="18" font-weight="700"
+    >Keep S1 / C1 / P1 / E1</text>
+
+    <rect
+      x="626"
+      y="190"
+      width="224"
+      height="238"
+      rx="22"
+      fill="#1E293B"
+      stroke="#38BDF8"
+      stroke-width="2"
+    />
+    <circle cx="660" cy="226" r="15" fill="#38BDF8" />
+    <text x="688" y="234" fill="#F8FAFC" font-size="23" font-weight="700">Minimal envelope</text>
+    <text x="652" y="282" fill="#BAE6FD" font-size="18">Aliased messages</text>
+    <text x="652" y="318" fill="#BAE6FD" font-size="18">Fixed read-only tools</text>
+    <text x="652" y="354" fill="#BAE6FD" font-size="18">Bounded dates / counts</text>
+    <text x="652" y="390" fill="#BAE6FD" font-size="18">No alias table</text>
+
+    <rect
+      x="904"
+      y="190"
+      width="224"
+      height="238"
+      rx="22"
+      fill="#1E293B"
+      stroke="#34D399"
+      stroke-width="2"
+    />
+    <circle cx="938" cy="226" r="15" fill="#34D399" />
+    <text x="966" y="234" fill="#F8FAFC" font-size="23" font-weight="700">Egress guard</text>
+    <text x="930" y="282" fill="#A7F3D0" font-size="18">Scan serialized body</text>
+    <text x="930" y="318" fill="#A7F3D0" font-size="18">Residual → block</text>
+    <text x="930" y="354" fill="#A7F3D0" font-size="18">HTTPS only</text>
+    <text x="930" y="390" fill="#A7F3D0" font-size="18">Exact-host allowlist</text>
+
+    <rect
+      x="1182"
+      y="190"
+      width="148"
+      height="238"
+      rx="22"
+      fill="#0F766E"
+      stroke="#67E8F9"
+      stroke-width="2"
+    />
+    <path
+      d="M1230 280h52l-10 56h-32z"
+      fill="none"
+      stroke="#CFFAFE"
+      stroke-width="5"
+      stroke-linejoin="round"
+    />
+    <path d="M1242 280v-13a14 14 0 0 1 28 0v13" fill="none" stroke="#CFFAFE" stroke-width="5" />
+    <text x="1256" y="370" fill="#ECFEFF" font-size="20" text-anchor="middle" font-weight="700"
+    >Kimi-compatible</text>
+    <text x="1256" y="397" fill="#CCFBF1" font-size="17" text-anchor="middle">endpoint</text>
+  </g>
+
+  <g stroke="#67E8F9" stroke-width="4" fill="none" marker-end="url(#arrow)">
+    <path d="M304 309H336" />
+    <path d="M582 309H614" />
+    <path d="M860 309H892" />
+    <path d="M1138 309H1170" />
+  </g>
+
+  <g font-family="Inter, system-ui, sans-serif">
+    <rect
+      x="348"
+      y="510"
+      width="502"
+      height="146"
+      rx="22"
+      fill="#0F172A"
+      stroke="#A78BFA"
+      stroke-dasharray="8 8"
+      stroke-width="2"
+    />
+    <text x="382" y="550" fill="#DDD6FE" font-size="21" font-weight="700"
+    >Alias table stays server-side</text>
+    <text x="382" y="588" fill="#CBD5E1" font-size="18"
+    >S1 ⇄ Example Lin　C1 ⇄ Test Chen　P1 ⇄ 0912…</text>
+    <text x="382" y="616" fill="#94A3B8" font-size="16">Reversible and still sensitive.</text>
+    <text x="382" y="640" fill="#94A3B8" font-size="16">Never part of the provider payload.</text>
+    <path
+      d="M460 500V446"
+      stroke="#A78BFA"
+      stroke-width="3"
+      stroke-dasharray="7 7"
+      marker-end="url(#arrow)"
+    />
+
+    <rect
+      x="904"
+      y="510"
+      width="426"
+      height="146"
+      rx="22"
+      fill="#172554"
+      stroke="#F87171"
+      stroke-width="2"
+    />
+    <text x="938" y="550" fill="#FECACA" font-size="21" font-weight="700"
+    >Residual found: fail closed</text>
+    <text x="938" y="584" fill="#CBD5E1" font-size="17">No request body is sent.</text>
+    <text x="938" y="610" fill="#CBD5E1" font-size="17">Errors contain no sensitive excerpt.</text>
+    <text x="938" y="638" fill="#94A3B8" font-size="15"
+    >Rules cannot detect every identity or sensitive meaning.</text>
+  </g>
+
+  <rect x="70" y="700" width="1260" height="2" fill="url(#safe)" opacity=".8" />
+  <text x="70" y="732" fill="#94A3B8" font-family="Inter, system-ui, sans-serif" font-size="16"
+  >Reference boundary only · not anonymization and not proof of a production deployment</text>
+</svg>
