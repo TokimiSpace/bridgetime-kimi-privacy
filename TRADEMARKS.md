@@ -11,3 +11,7 @@ permission.
 
 BridgeTime's non-public application code, customer data, infrastructure, and commercial service are
 not licensed by this repository.
+
+**Kimi** and **Moonshot AI** are third-party names and marks belonging to their respective owner.
+They are used here only to identify API compatibility and the provider boundary being examined. This
+repository is not affiliated with, sponsored by, certified by, or endorsed by Moonshot AI.
