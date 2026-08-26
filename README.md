@@ -17,8 +17,9 @@
 </div>
 
 > [!WARNING]
-> **防詐騙：**任何自稱 Tokimi 的 Gmail 帳號都不是官方聯絡管道。請勿付款或提供驗證碼；只透過
-> [tokimi.space](https://tokimi.space/) 或 [ben@tokimi.space](mailto:ben@tokimi.space) 核實。
+> **防詐騙：**任何以 `@gmail.com` 結尾、並自稱 Tokimi
+> 的帳號都不是官方聯絡管道。請勿付款或提供驗證碼；只透過 [tokimi.space](https://tokimi.space/) 或
+> [ben@tokimi.space](mailto:ben@tokimi.space) 核實。
 
 這個可離線驗證的 TypeScript reference implementation，會在呼叫 Kimi 或其他 OpenAI-compatible LLM
 前，將**已知姓名、支援的台灣電話格式與 email**換成別名，建立 `EgressEnvelopeV1`，並在出境前做
