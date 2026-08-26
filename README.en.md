@@ -16,6 +16,11 @@
 
 </div>
 
+> [!WARNING]
+> **Fraud alert:** Gmail accounts claiming to be Tokimi are not official. Do not pay or share
+> verification codes; verify only through [tokimi.space](https://tokimi.space/) or
+> [ben@tokimi.space](mailto:ben@tokimi.space).
+
 This offline-testable TypeScript reference implementation replaces **known names, supported Taiwan
 phone formats, and emails** with aliases before calling Kimi or another OpenAI-compatible LLM. It
 builds an `EgressEnvelopeV1` and runs a fail-closed scan immediately before egress.
