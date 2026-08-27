@@ -6,10 +6,10 @@ Thank you for helping make the privacy boundary easier to inspect.
    logs, screenshots, provider responses, or credentials.
 2. Keep this package independent from BridgeTime's database, authentication, UI, mobile apps, and
    private infrastructure.
-3. Treat privacy checks as a boundary: new outbound fields require tests showing that declared raw
-   values cannot appear in the serialized payload.
-4. Preserve fixed, read-only tool names. New tools need a threat-model update and must not accept a
-   tenant or merchant identifier from the model.
+3. Treat privacy checks as a boundary. Private Intent fields and action/entity pairs are closed;
+   changing them requires an explicit threat-model update and exact wire-capture tests.
+4. Preserve fixed, read-only Pseudonymized Context tools. New tools must not accept a tenant or
+   merchant identifier from the model.
 5. Do not weaken HTTPS, exact-host allowlisting, fail-closed behavior, or safe errors for
    convenience.
 

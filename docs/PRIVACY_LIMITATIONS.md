@@ -1,50 +1,54 @@
 # Privacy limitations
 
-## Precise claim
+## Precise claims
 
-The code demonstrates that **known roster identities, supported Taiwan phone formats, email
-addresses, and caller-declared sensitive literals are excluded from a tested outbound envelope or
-cause the request to be blocked**.
+### Private Intent
 
-It does not demonstrate that an arbitrary message contains no personal data.
+The code demonstrates that `sendPrivateIntentEnvelope` rebuilds an outbound request containing only
+fixed model/prompt/tool metadata and a five-field abstract enum. Extra runtime properties are
+dropped; invalid enum values and invalid action/entity pairs block transport.
 
-## Pseudonymization, not anonymization
+It does **not** send raw chat, names, merchant/service labels, internal IDs, counts, dates, times,
+timezone, schedules, or conversation history through this API.
+
+It still sends provider-visible metadata: the API account and network metadata plus an operation
+class such as `create/staff`, its source category, and whether it is a request or preview. Do not
+describe this as “nothing is sent to Kimi.” The accurate claim is “no merchant or personal data is
+sent through the Private Intent payload.”
+
+The adopter's server still receives and processes the original data. TLS, database permissions,
+backups, logs, APM, support access, and incident response remain deployment responsibilities.
+
+## Local interpretation tradeoff
+
+Because Kimi cannot see raw language or business values, it cannot resolve a staff name, reason over
+a schedule, or validate a service relationship. The adopter must parse input locally and use
+structured forms or quick actions when confidence is low. The provider response must not select a
+tenant, authorize a request, or supply values for a write.
+
+## Pseudonymization mode is not anonymity
 
 `S1`, `C1`, `P1`, and `E1` are reversible through a server-side alias table. The table may contain
 raw names, phone numbers, email addresses, and internal IDs. It requires encryption, access control,
-retention limits, and deletion in a real service. This repository intentionally supplies none of
-those production storage concerns.
+retention limits, and deletion in a real service.
 
-## Detection gaps
-
-The rules do not reliably identify:
+The Pseudonymized Context rules do not reliably identify:
 
 - a person absent from the supplied roster;
-- street addresses, social handles, order numbers, passport numbers, or non-Taiwan identifiers;
+- addresses, social handles, order numbers, passports, or non-Taiwan identifiers;
 - obfuscated or uncommon phone/email formats;
 - sensitive facts without a distinctive identifier;
-- a service or business label that itself embeds a person's name;
+- a service or business label that embeds a person's name;
 - combinations of dates, counts, schedules, and context that enable re-identification.
 
-`declaredSensitiveLiterals` can make known exceptional values fail closed, but requires the caller
-to know them. A false negative remains possible. A false positive may block a safe request; that is
-an accepted tradeoff at this boundary.
+Aliased tool results may expose schedule ranges, dates, counts, status codes, and opaque tokens.
+Prefer Private Intent whenever product behavior can be implemented locally.
 
-## Tool-result reality
+## Production and provider boundaries
 
-The LLM sees aliased tool results when a caller includes them in a second model turn. It can see
-schedule ranges, dates, counts, status codes, and opaque tokens. Do not claim that “queries and
-answers stay entirely local” when the model is used to turn those results into prose.
+As of 2026-08-27, the private BridgeTime source includes Private Intent at commit
+`b62f84f90a7e5d300198af897ea1c7989d6944d8`. This does not prove a live deployment, runtime
+configuration, provider agreement, logging policy, or surrounding infrastructure.
 
-This reference improves on the source snapshot by using service tokens (`V1`) rather than raw
-service names. That difference is documented in `SOURCE_MAPPING.md`.
-
-## Production status
-
-As of 2026-08-25, the production assistant at `bridgetime.org` is disabled. Passing these tests does
-not prove which code, configuration, model, retention policy, or subprocessors a live site uses.
-Before production activation, BridgeTime would need an updated privacy notice, provider/legal
-review, operational controls, and deployment-specific verification.
-
-Provider-side retention, training, contract and data-location questions remain outside this code
-boundary. Review [`PROVIDER_DUE_DILIGENCE.md`](PROVIDER_DUE_DILIGENCE.md) before activation.
+Provider-side retention, training, contract, data-location, account, and network-metadata questions
+remain outside this code boundary. Review `PROVIDER_DUE_DILIGENCE.md` before activation.

@@ -2,7 +2,7 @@
 
 # BridgeTime Kimi Privacy Envelope
 
-**資料送往外部 LLM 前，先別名化、最小化並檢查。**
+**讓 Kimi 協助介面路由，不必看見姓名、服務、商家資料或原始對話。**
 
 [繁體中文](README.md) · [English](README.en.md)
 
@@ -21,46 +21,96 @@
 > 的帳號都不是官方聯絡管道。請勿付款或提供驗證碼；只透過 [tokimi.space](https://tokimi.space/) 或
 > [ben@tokimi.space](mailto:ben@tokimi.space) 核實。
 
-這個可離線驗證的 TypeScript reference implementation，會在呼叫 Kimi 或其他 OpenAI-compatible LLM
-前，將**已知姓名、支援的台灣電話格式與 email**換成別名，建立 `EgressEnvelopeV1`，並在出境前做
-fail-closed 掃描。
+這是一個可離線驗證的 TypeScript 隱私邊界 reference implementation。`v0.2.0` 提供兩種明確分離的模式：
+
+| 模式                       | Kimi 可看見                        | 適合用途                                | 隱私強度       |
+| -------------------------- | ---------------------------------- | --------------------------------------- | -------------- |
+| **Private Intent（推薦）** | 固定五欄位的抽象 enum              | 員工／服務 CRUD、對應關係、排班表單路由 | 不傳商家資料   |
+| Pseudonymized Context      | 別名化訊息、代號、日期、時段與彙總 | 必須由模型閱讀語意或工具結果的實驗      | 仍有重識別風險 |
 
 > [!IMPORTANT]
-> 截至 **2026-08-25**，`bridgetime.org` 的 production assistant 為 **disabled**。本 repo 衍生自
-> private BridgeTime commit `48f5e35659afc729828a20bd68130ac5cd1262ca` 並加入額外加固；它不是
-> production deployment 證明，也不能辨識所有個資。
+> 截至 **2026-08-27**，BridgeTime source 已在 private commit
+> `b62f84f90a7e5d300198af897ea1c7989d6944d8` 導入 Private Intent 架構。實際網站是否啟用仍由部署環境
+> 與 `LLM_API_KEY` 決定；本 repo 不是 production deployment 或供應商政策的證明。
 
-![BridgeTime Kimi Privacy Envelope 中文資料流](docs/assets/privacy-envelope-flow-zh-TW.svg)
+## 推薦：零商家資料模式
 
-## 運作方式
+原始對話、姓名、商家／服務名稱、內部 ID、數量、日期、時間、時區與歷史訊息都留在採用者自己的 server
+boundary。自然語言判讀、資料庫查詢、權限檢查、預覽與寫入也都在本機完成。
 
-| 階段          | 動作                                                                                 | 可出境資料           |
-| ------------- | ------------------------------------------------------------------------------------ | -------------------- |
-| 別名化        | 已知人名、電話、email 轉為 `S1`、`C1`、`P1`、`E1`                                    | 無                   |
-| 建立 envelope | 正規化文字；加入呼叫端提供、受長度限制與掃描的 system prompt，以及固定的三種唯讀工具 | 別名化訊息與受限欄位 |
-| 出境檢查      | 掃描敏感值、身分／credential 字形與長數字                                            | 有殘留就阻擋         |
-| Transport     | 僅允許 HTTPS:443、精確 hostname allowlist，拒絕 redirect                             | 通過檢查的 wire body |
+Kimi 只收到這種固定 envelope：
 
-原始輸入 `林範例請聯絡陳測試，電話 0912-000-123` 會成為 `S1請聯絡C1,電話 P1`。對照表只留在採用者的
-server boundary。
+```json
+{
+  "schema": "bridgetime.private-intent.v1",
+  "action": "create",
+  "entity": "staff",
+  "source": "structured_form",
+  "stage": "preview"
+}
+```
 
-這是可逆的 **pseudonymization（別名化）**，不是 anonymization（匿名化）。Alias table 本身是敏感
-資料，正式系統仍需實作加密、存取控制、保留期限與刪除。
+```mermaid
+sequenceDiagram
+  participant U as 使用者
+  participant S as 採用者伺服器
+  participant G as Runtime egress guard
+  participant K as Kimi
+  U->>S: 原始對話與商家資料
+  S->>S: 本機判讀、驗證、查詢、預覽
+  S->>G: 固定 enum intent
+  G->>G: 白名單重建；異常 enum 直接阻擋
+  G->>K: 五欄位 abstract intent
+  K-->>S: 不受信任的 generic routing response
+  S->>S: 忽略資料性輸出；本機授權與寫入
+```
+
+### 最小整合
+
+```ts
+import { buildPrivateIntentEnvelopeV1, sendPrivateIntentEnvelope } from "./src/mod.ts";
+
+// 原始文字與實際表單值必須先在自己的 server 內處理。
+const envelope = buildPrivateIntentEnvelopeV1(
+  "create_staff",
+  "structured_form",
+  "preview",
+);
+
+await sendPrivateIntentEnvelope({
+  envelope,
+  apiKey: Deno.env.get("LLM_API_KEY") ?? "",
+});
+```
+
+`sendPrivateIntentEnvelope` 會再次從白名單重建物件；多餘欄位被丟棄，無效或不相容的 enum 在 transport
+前 fail closed。Kimi endpoint 固定為 `https://api.moonshot.ai/v1`，模型固定為 `kimi-k2.6`，thinking
+關閉，回覆上限 128 tokens，redirect 也會被拒絕。模型回覆不應決定 tenant、授權或資料庫寫入。
+
+## 進階：別名化語境模式
+
+若產品真的需要模型讀取自然語言或工具結果，可使用既有的 `EgressEnvelopeV1`。它會把已知姓名、支援的
+台灣電話格式與 email 轉成 `S1`、`C1`、`P1`、`E1`，並在出境前做 fail-closed 掃描。
+
+![別名化模式資料流](docs/assets/privacy-envelope-flow-zh-TW.svg)
+
+這是可逆的 **pseudonymization（別名化）**，不是 anonymization（匿名化）。服務代號、日期、時段、
+數量與狀態仍可能送到模型，也可能透過組合重識別。能用 Private Intent 就不要用這個模式。
 
 ## 證據邊界
 
-| 可重現地證明                                                           | 不代表                                             |
-| ---------------------------------------------------------------------- | -------------------------------------------------- |
-| 已知 roster 姓名、支援電話／email 與 caller 宣告值會被替換或阻擋       | 任意自由文字都不含個資                             |
-| Alias table 與 outbound envelope 分離；capture test 檢查實際 wire body | `S1`、`C1` 已匿名化                                |
-| 模型只能要求 `staff_on_shift`、`open_slots`、`booking_stats`           | 周邊系統已有 auth、tenant isolation 或 consent     |
-| Tool schema 無 DB 存取或寫入；result serializer 拒絕自由文字           | 工具結果完全留在本機                               |
-| URL、redirect 與錯誤路徑採 fail-closed                                 | 程式可保證 provider 的保留、訓練、跨境或次處理政策 |
+| 可重現地證明                                                                 | 不代表                                         |
+| ---------------------------------------------------------------------------- | ---------------------------------------------- |
+| Private Intent wire body 只含固定 prompt、tool schema、模型設定與五欄位 enum | Kimi 完全沒有收到任何 metadata                 |
+| Runtime guard 會剝除額外欄位，異常 enum 在 transport 前阻擋                  | 周邊系統已有 auth、tenant isolation 或 consent |
+| 官方 Kimi hostname、HTTPS:443 與拒絕 redirect 被固定                         | 可保證 provider 的保留、訓練、跨境或次處理政策 |
+| Pseudonymized Context 會替換已知姓名與支援格式，並掃描實際 wire body         | 任意自由文字已匿名化或不含未知個資             |
+| 錯誤只暴露固定 code，不反射 request／provider body                           | 基礎設施、APM、proxy 或備份不會另行記錄資料    |
 
-工具結果中的**員工／服務代號、日期、時段、數量與狀態仍可能送到模型**。詳細限制見
-[PRIVACY_LIMITATIONS.md](docs/PRIVACY_LIMITATIONS.md)與 [THREAT_MODEL.md](docs/THREAT_MODEL.md)。
+詳細限制見 [PRIVACY_LIMITATIONS.md](docs/PRIVACY_LIMITATIONS.md)與
+[THREAT_MODEL.md](docs/THREAT_MODEL.md)。
 
-## 30 秒驗證
+## 30 秒離線驗證
 
 只需要 [Deno 2](https://docs.deno.com/runtime/getting_started/installation/)：
 
@@ -71,51 +121,27 @@ deno task verify
 deno task demo
 ```
 
-`verify` 執行格式、型別與離線測試；`demo` 只用合成資料與 `CaptureTransport`，不發出網路
-request，也不印出 alias table、原始值或 API key。
-
-## 最小整合
-
-```ts
-import { buildAliasTable, buildReadOnlyToolSchemas, prepareEgressEnvelopeV1 } from "./src/mod.ts";
-
-const aliasTable = buildAliasTable(
-  [{ id: "staff-1", displayName: "林範例" }],
-  [{ id: "customer-1", displayName: "陳測試" }],
-);
-
-const prepared = prepareEgressEnvelopeV1({
-  model: "kimi-k2.6",
-  systemPrompt: "Use opaque tokens.",
-  rawUserText: "林範例請聯絡陳測試，電話 0912-000-123",
-  aliasTable,
-  tools: buildReadOnlyToolSchemas({ staffTokens: ["S1"], serviceTokens: ["V1"] }),
-});
-```
-
-Alias table 只能存在受信任的 server-side state。工具需在採用者自己的 authentication／tenant boundary
-內執行，再以 `appendAliasedToolRoundTrip` 加入受限結果；本 repo 刻意不含 DB executor。
+`verify` 執行格式、型別與全部離線測試。測試含可辨識 canary、惡意額外欄位、錯誤 enum、實際 wire
+capture、endpoint allowlist 與 body-free error。`demo` 只使用合成資料與
+`CaptureTransport`，不發出網路 request，也不保存 API key。
 
 ## 上線前
 
-測試通過不等於可處理真實資料。至少需完成：
+零商家資料模式大幅縮小 provider 邊界，但不取代完整的系統與法律控制：
 
-- provider retention、training、資料地區、subprocessor 與刪除條款審查；
-- 隱私告知、合法依據／同意、跨境傳輸與資料當事人流程；
-- alias table 加密、權限、TTL／deletion 與 backup policy；
-- authentication、tenant isolation、body-free logging、key rotation 與 kill switch。
+- authentication、tenant isolation、操作權限、一次性確認與 rate limit；
+- TLS、資料庫／備份權限、body-free logging、secret rotation 與 kill switch；
+- 準確的隱私告知、合法依據、跨境傳輸與資料當事人流程；
+- provider retention、training、資料地區、subprocessor 與刪除條款審查。
 
 Kimi 政策可能變更，啟用前請重查
 [PROVIDER_DUE_DILIGENCE.md](docs/PROVIDER_DUE_DILIGENCE.md)。這不是法律意見。
 
 ## 文件、安全與授權
 
-`src/` 是別名化、envelope、provider 與 tool boundary；`tests/` 提供 fail-closed 與 wire-body
-證據。閱讀 [DATA_FLOW.md](docs/DATA_FLOW.md)、[VERIFY.md](docs/VERIFY.md)及
-[SOURCE_MAPPING.md](docs/SOURCE_MAPPING.md)。
-
-貢獻請只用合成資料並先讀 [CONTRIBUTING.md](CONTRIBUTING.md)；安全問題請依 [SECURITY.md](SECURITY.md)
-私下回報。
+閱讀 [DATA_FLOW.md](docs/DATA_FLOW.md)、[VERIFY.md](docs/VERIFY.md)、
+[SOURCE_MAPPING.md](docs/SOURCE_MAPPING.md)及 [CHANGELOG.md](CHANGELOG.md)。貢獻請只用合成資料並先讀
+[CONTRIBUTING.md](CONTRIBUTING.md)；安全問題請依 [SECURITY.md](SECURITY.md) 私下回報。
 
 程式碼與文件採 [Apache License 2.0](LICENSE)。BridgeTime、TokimiSpace 名稱與標誌不在授權內，詳見
 [TRADEMARKS.md](TRADEMARKS.md)。Kimi 與 Moonshot AI 為第三方名稱；本 repo 不代表雙方有合作或認證。

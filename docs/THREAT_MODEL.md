@@ -2,44 +2,56 @@
 
 ## Assets
 
-- Merchant and customer names, phone numbers, email addresses, internal entity IDs.
-- Alias tables, because aliases are reversible inside a conversation.
-- Provider credentials and provider request/response bodies.
-- Tenant boundaries and appointment/business data owned by a merchant.
+- Merchant, staff, customer, and service names; contact details; internal entity IDs.
+- Schedules, dates, times, counts, relationships, and conversation history.
+- Alias tables used by the optional pseudonymization mode.
+- Provider credentials, request/response bodies, and tenant boundaries.
 
 ## Trust boundaries
 
-| Boundary           | Trusted for                                                      | Not trusted for                                             |
-| ------------------ | ---------------------------------------------------------------- | ----------------------------------------------------------- |
-| Application server | Authentication, roster lookup, alias state, local tool execution | Assuming every free-text identifier is detectable           |
-| Egress guard       | Blocking declared literals and supported detectable shapes       | Semantic PII detection or true anonymization                |
-| Provider transport | TLS delivery to an allowlisted hostname                          | Data ownership, retention, training policy, or jurisdiction |
-| LLM output         | Suggested language and tool calls                                | Authorization, tenant selection, date arithmetic, or writes |
+| Boundary               | Trusted for                                                                | Not trusted for                                                       |
+| ---------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Adopter server         | Authentication, local parsing, roster lookup, validation, previews, writes | Automatically having secure logs, backups, storage, or access control |
+| Private Intent guard   | Fixed enum mapping, runtime rebuilding, invalid-value blocking             | Semantic parsing, tenant selection, authorization, or CRUD            |
+| Pseudonymization guard | Replacing declared/known values and supported patterns                     | Detecting arbitrary personal or business information                  |
+| Provider transport     | TLS delivery to a pinned allowlisted hostname                              | Retention, training policy, jurisdiction, or account metadata privacy |
+| LLM output             | Optional generic UI-routing suggestion                                     | Business facts, authorization, IDs, date arithmetic, or writes        |
 
-## In-scope threats and controls
+## Private Intent threats and controls
 
-| Threat                                          | Control in this repo                                              |
-| ----------------------------------------------- | ----------------------------------------------------------------- |
-| Known identity leaves in prompt                 | Per-conversation `S`/`C` alias replacement                        |
-| Supported phone/email leaves in prompt          | `P`/`E` pattern replacement plus second scan                      |
-| Alias map accidentally serialized               | Separate types; envelope has no alias-table field; capture tests  |
-| Model chooses another tenant                    | No tenant/merchant argument in tool schemas                       |
-| Model performs a write                          | Fixed allowlist of three read-only tools; no executor included    |
-| Tool result leaks a name or ID                  | Runtime-constrained aliased serializer                            |
-| Endpoint is changed to HTTP or a lookalike host | HTTPS, port and exact-host validation                             |
-| Allowlisted endpoint redirects to another host  | Fetch redirect mode is `error`; credentials/body are not followed |
-| Error handling reflects request/provider body   | Fixed error messages and metadata-only projection                 |
-| API key appears in offline captures             | Capture transport intentionally drops credentials                 |
+| Threat                                           | Control                                                                      |
+| ------------------------------------------------ | ---------------------------------------------------------------------------- |
+| Raw message is concatenated into a prompt        | Public API accepts only `PrivateIntentEnvelopeV1`; fixed prompt is internal  |
+| Extra property carries a name or merchant value  | Runtime guard creates a new five-field object and drops all extras           |
+| Enum field is abused as free text                | Closed enum and action/entity-pair validation fail before transport          |
+| Config redirects the key/body elsewhere          | Endpoint, host, model, prompt, tool, token cap, and thinking mode are pinned |
+| Redirect forwards credentials or body            | Fetch uses `redirect: "error"`                                               |
+| Model selects another tenant or performs a write | No tenant/value/write fields exist; output is deliberately ignored           |
+| Provider error echoes request content            | Safe errors contain only fixed codes/status metadata                         |
+| API key appears in offline evidence              | `CaptureTransport` intentionally drops authorization data                    |
+
+## Pseudonymization-mode threats and controls
+
+| Threat                            | Control                                              |
+| --------------------------------- | ---------------------------------------------------- |
+| Known identity leaves in a prompt | Per-conversation `S`/`C` alias replacement           |
+| Supported phone/email leaves      | `P`/`E` replacement plus a second wire scan          |
+| Alias map is serialized           | Separate type and capture tests                      |
+| Model chooses another tenant      | No tenant/merchant tool argument                     |
+| Model performs a write            | Fixed read-only tool allowlist; no executor included |
+| Tool result leaks free text       | Runtime-constrained serializer                       |
 
 ## Residual and out-of-scope threats
 
-- Unknown names, addresses, health details, relationship facts, rare phone formats, prompt
-  injection, inference from scheduling patterns, and identifying combinations of otherwise ordinary
-  facts.
-- Provider retention/training/subprocessor policy, TLS endpoint compromise, DNS/CA compromise,
-  infrastructure logging outside this package, server compromise, and alias-table storage policy.
-- Authentication, authorization, database tenant isolation, rate limiting, consent, data-subject
-  rights, privacy notices, production monitoring, and incident response.
+- The provider sees account/network metadata and abstract Private Intent operation classes.
+- The adopter's own server, database, logs, proxies, APM, backups, support tooling, or dependencies
+  may expose the raw data independently of this package.
+- Local parsing can misunderstand an instruction; a wrong intent should lead to a local form or
+  preview, never an automatic write.
+- Pseudonymized Context can leak unknown names, addresses, health details, uncommon identifiers,
+  prompt injection, or identifying combinations of ordinary facts.
+- Provider retention/training/subprocessors, endpoint compromise, DNS/CA compromise, consent, legal
+  basis, incident response, and production monitoring are outside this repository.
 
-An adopter must implement those controls independently and complete a legal/privacy review before
-enabling an external model.
+Adopters must implement authentication, tenant isolation, one-shot confirmation, rate limiting,
+body-free telemetry, secure secret storage, and legal/privacy review independently.

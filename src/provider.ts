@@ -5,9 +5,44 @@ import {
   type EgressGuard,
 } from "./envelope.ts";
 import { SafeProviderError } from "./errors.ts";
+import {
+  type PrivateIntentEnvelopeV1,
+  serializePrivateIntentEnvelopeV1,
+} from "./private_intent.ts";
 import { canonicalizeReadOnlyToolCall, type ReadOnlyToolCall } from "./tools.ts";
 
 export const KIMI_ALLOWED_HOSTS = ["api.moonshot.ai"] as const;
+export const KIMI_API_BASE_URL = "https://api.moonshot.ai/v1";
+export const KIMI_PRIVATE_INTENT_MODEL = "kimi-k2.6";
+
+const PRIVATE_INTENT_SYSTEM_MESSAGE =
+  "You route a privacy-preserving management UI. The user message, merchant identity, names, services, IDs, counts, dates, times and all business values are intentionally unavailable. Use only the abstract enum envelope. Never ask for or infer hidden values. Call choose_dialogue_strategy once.";
+
+const PRIVATE_INTENT_TOOL = {
+  type: "function",
+  function: {
+    name: "choose_dialogue_strategy",
+    description:
+      "Choose the generic UI strategy for an already-redacted merchant-management intent. No merchant data is available or needed.",
+    parameters: {
+      type: "object",
+      properties: {
+        strategy: {
+          type: "string",
+          enum: [
+            "show_list",
+            "show_form",
+            "show_relationship_editor",
+            "show_schedule_form",
+            "show_help",
+          ],
+        },
+      },
+      required: ["strategy"],
+      additionalProperties: false,
+    },
+  },
+} as const;
 
 export interface ProviderHttpRequest {
   url: string;
@@ -90,7 +125,7 @@ export async function sendEgressEnvelope(input: {
   apiKey: string;
   transport?: ProviderTransport;
 }): Promise<AssistantReply> {
-  if (!input.apiKey) throw new SafeProviderError("missing_api_key");
+  if (!input.apiKey.trim()) throw new SafeProviderError("missing_api_key");
   assertEgressEnvelopeSafe(input.envelope, input.guard);
   const url = resolveChatCompletionsUrl(input.baseUrl, input.allowedHosts);
   const body = toWireBody(input.envelope);
@@ -151,12 +186,69 @@ export async function sendEgressEnvelope(input: {
   }
 }
 
+/**
+ * Send only a fixed, value-free intent envelope to Kimi. The official endpoint,
+ * model, system prompt, tool schema and token budget are pinned here. The
+ * provider response is deliberately ignored and must never drive authorization
+ * or a database write.
+ */
+export async function sendPrivateIntentEnvelope(input: {
+  envelope: PrivateIntentEnvelopeV1;
+  apiKey: string;
+  transport?: ProviderTransport;
+}): Promise<{ providerConsulted: true }> {
+  if (!input.apiKey) throw new SafeProviderError("missing_api_key");
+  const url = resolveChatCompletionsUrl(KIMI_API_BASE_URL, KIMI_ALLOWED_HOSTS);
+  const body = JSON.stringify({
+    model: KIMI_PRIVATE_INTENT_MODEL,
+    messages: [
+      { role: "system", content: PRIVATE_INTENT_SYSTEM_MESSAGE },
+      { role: "user", content: serializePrivateIntentEnvelopeV1(input.envelope) },
+    ],
+    tools: [PRIVATE_INTENT_TOOL],
+    max_tokens: 128,
+    thinking: { type: "disabled" },
+  });
+
+  const response = await sendProviderRequest(
+    input.transport ?? new FetchTransport(fetch, 5_000),
+    { url, apiKey: input.apiKey, body },
+  );
+  assertSuccessfulProviderStatus(response);
+  return { providerConsulted: true };
+}
+
+async function sendProviderRequest(
+  transport: ProviderTransport,
+  request: ProviderHttpRequest,
+): Promise<ProviderHttpResponse> {
+  try {
+    return await transport.send(request);
+  } catch (error) {
+    if (error instanceof SafeProviderError) throw error;
+    throw new SafeProviderError("network");
+  }
+}
+
+function assertSuccessfulProviderStatus(response: ProviderHttpResponse): void {
+  if (response.status === 401 || response.status === 403) {
+    throw new SafeProviderError("auth", response.status);
+  }
+  if (response.status === 429) throw new SafeProviderError("rate_limit", 429);
+  if (response.status < 200 || response.status >= 300) {
+    throw new SafeProviderError("provider", response.status);
+  }
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
 export class FetchTransport implements ProviderTransport {
-  constructor(private readonly fetchFn: typeof fetch = fetch) {}
+  constructor(
+    private readonly fetchFn: typeof fetch = fetch,
+    private readonly timeoutMs = 30_000,
+  ) {}
 
   async send(request: ProviderHttpRequest): Promise<ProviderHttpResponse> {
     let response: Response;
@@ -170,6 +262,7 @@ export class FetchTransport implements ProviderTransport {
           "Content-Type": "application/json",
         },
         body: request.body,
+        signal: AbortSignal.timeout(this.timeoutMs),
       });
     } catch {
       throw new SafeProviderError("network");

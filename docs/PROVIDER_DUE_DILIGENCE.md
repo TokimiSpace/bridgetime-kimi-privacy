@@ -37,6 +37,14 @@ account、input 與 payment information 的保留範例是帳號有效期間，�
 
 ## Activation gate / 啟用前門檻
 
+Private Intent materially minimizes Customer Content, but the provider still receives a fixed
+prompt, abstract operation metadata, API-account information, and network metadata. The provider
+terms therefore remain relevant even though merchant and personal values are excluded from the
+payload.
+
+Private Intent 會大幅減少 Customer Content，但供應商仍會收到固定 prompt、抽象操作 metadata、API
+帳號與網路 metadata。即使 payload 不含商家或個人值，供應商條款仍然適用。
+
 Do not enable a real Kimi provider for BridgeTime user traffic until all items are documented:
 
 - A signed enterprise arrangement or separate written agreement states whether Customer Content is
@@ -44,8 +52,8 @@ Do not enable a real Kimi provider for BridgeTime user traffic until all items a
   subprocessors, breach notification, audit rights, and termination handling.
 - Counsel confirms the lawful basis, notices/consent, cross-border transfer mechanism, processor
   roles, and data-subject request process for every served jurisdiction.
-- BridgeTime's privacy notice accurately names the provider/data flow and no longer promises that
-  data is never shared with a third party when an external LLM is enabled.
+- BridgeTime's privacy notice accurately states that abstract routing metadata reaches Kimi while
+  raw chat and merchant/personal values stay inside BridgeTime.
 - The production endpoint, account tier, region, logging, backups, support workflow, and deletion
   behavior are verified against the signed terms—not inferred from this reference code.
 - A data inventory sets an allowlist for permitted fields and prohibits special-category or other
@@ -58,8 +66,8 @@ BridgeTime 若要把真實使用者流量送至 Kimi，應先完成以下事項�
 - 取得已簽署的企業方案或獨立書面協議，明定 Customer Content 是否排除於訓練／模型改善、
   保留與刪除、保密、次處理者、資安事件通知、稽核權與終止後處理。
 - 由法律顧問確認各服務地區的合法依據、告知／同意、跨境傳輸機制、資料處理角色與當事人權利處理流程。
-- 更新 BridgeTime 隱私告知，準確說明供應商與資料流；啟用外部 LLM 後，不可仍承諾資料絕不
-  提供予第三方。
+- 更新 BridgeTime 隱私告知，準確說明抽象路由 metadata 會送往 Kimi，原始對話與商家／個人值 留在
+  BridgeTime 邊界內。
 - 依簽署條款驗證 production endpoint、帳號層級、區域、日誌、備份、客服流程與刪除行為，不可由本
   reference code 推論。
 - 建立資料清冊與允許欄位清單；未另行核准前，禁止特殊類別或其他高風險內容。

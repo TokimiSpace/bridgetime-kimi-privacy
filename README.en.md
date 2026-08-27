@@ -2,7 +2,7 @@
 
 # BridgeTime Kimi Privacy Envelope
 
-**Alias, minimize, and inspect data before it reaches an external LLM.**
+**Let Kimi assist with UI routing without seeing names, services, merchant data, or raw chat.**
 
 [繁體中文](README.md) · [English](README.en.md)
 
@@ -21,48 +21,103 @@
 > contact channel. Do not pay or share verification codes; verify only through
 > [tokimi.space](https://tokimi.space/) or [ben@tokimi.space](mailto:ben@tokimi.space).
 
-This offline-testable TypeScript reference implementation replaces **known names, supported Taiwan
-phone formats, and emails** with aliases before calling Kimi or another OpenAI-compatible LLM. It
-builds an `EgressEnvelopeV1` and runs a fail-closed scan immediately before egress.
+This is an offline-verifiable TypeScript privacy-boundary reference. `v0.2.0` provides two clearly
+separated modes:
+
+| Mode                             | What Kimi sees                                           | Suitable for                                                     | Privacy posture                |
+| -------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------ |
+| **Private Intent (recommended)** | A fixed five-field enum                                  | Staff/service CRUD, relationships, and schedule-form routing     | No business data sent          |
+| Pseudonymized Context            | Aliased text, tokens, dates, time ranges, and aggregates | Experiments that require model-visible semantics or tool results | Re-identification risk remains |
 
 > [!IMPORTANT]
-> As of **2026-08-25**, the production assistant at `bridgetime.org` is **disabled**. This
-> repository derives from private BridgeTime commit `48f5e35659afc729828a20bd68130ac5cd1262ca` and
-> adds hardening. It is not proof of a production deployment and cannot detect every kind of
-> personal data.
+> As of **2026-08-27**, BridgeTime source includes the Private Intent architecture at private commit
+> `b62f84f90a7e5d300198af897ea1c7989d6944d8`. Live activation still depends on deployment
+> configuration and `LLM_API_KEY`; this repository is not proof of production deployment or provider
+> policy.
 
-![BridgeTime Kimi Privacy Envelope flow](docs/assets/privacy-envelope-flow-en.svg)
+## Recommended: zero-business-data mode
 
-## How it works
+Raw chat, names, merchant/service labels, internal IDs, counts, dates, times, timezone, and history
+remain inside the adopter's server boundary. Natural-language interpretation, database queries,
+authorization, previews, and writes also happen locally.
 
-| Stage          | Action                                                                                                       | Data allowed to leave               |
-| -------------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------- |
-| Alias          | Convert known names, phones, and emails to `S1`, `C1`, `P1`, and `E1`                                        | Nothing                             |
-| Build envelope | Normalize text; add a caller-supplied, length-bounded, scanned system prompt and three fixed read-only tools | Aliased messages and bounded fields |
-| Scan egress    | Detect sensitive literals, identity/credential shapes, and long numbers                                      | Any residue blocks the request      |
-| Transport      | Require HTTPS:443, exact hostname allowlist, and no redirects                                                | Validated wire body                 |
+Kimi receives only a fixed envelope such as:
 
-Raw input `林範例請聯絡陳測試，電話 0912-000-123` becomes `S1請聯絡C1,電話 P1`. The mapping stays
-inside the adopter's server boundary.
+```json
+{
+  "schema": "bridgetime.private-intent.v1",
+  "action": "create",
+  "entity": "staff",
+  "source": "structured_form",
+  "stage": "preview"
+}
+```
 
-This is reversible **pseudonymization**, not anonymization. The alias table is sensitive; production
-systems still need encryption, access control, retention, and deletion.
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant S as Adopter server
+  participant G as Runtime egress guard
+  participant K as Kimi
+  U->>S: Raw chat and business data
+  S->>S: Local parsing, validation, queries, preview
+  S->>G: Fixed enum intent
+  G->>G: Rebuild allowlist; reject invalid enums
+  G->>K: Five-field abstract intent
+  K-->>S: Untrusted generic routing response
+  S->>S: Ignore data-bearing output; authorize and write locally
+```
+
+### Minimal integration
+
+```ts
+import { buildPrivateIntentEnvelopeV1, sendPrivateIntentEnvelope } from "./src/mod.ts";
+
+// Interpret raw text and real form values inside your own server first.
+const envelope = buildPrivateIntentEnvelopeV1(
+  "create_staff",
+  "structured_form",
+  "preview",
+);
+
+await sendPrivateIntentEnvelope({
+  envelope,
+  apiKey: Deno.env.get("LLM_API_KEY") ?? "",
+});
+```
+
+`sendPrivateIntentEnvelope` rebuilds the object from a runtime allowlist. Extra fields are dropped;
+invalid or incompatible enums fail closed before transport. The Kimi endpoint is pinned to
+`https://api.moonshot.ai/v1`, the model to `kimi-k2.6`, thinking is disabled, replies are limited to
+128 tokens, and redirects are rejected. Never let model output choose a tenant, authorize an action,
+or perform a database write.
+
+## Advanced: pseudonymized-context mode
+
+If a product genuinely needs the model to read language or tool results, the existing
+`EgressEnvelopeV1` replaces known names, supported Taiwan phone formats, and email addresses with
+`S1`, `C1`, `P1`, and `E1`, then applies a fail-closed pre-egress scan.
+
+![Pseudonymized-context flow](docs/assets/privacy-envelope-flow-en.svg)
+
+This is reversible **pseudonymization**, not anonymization. Service tokens, dates, time ranges,
+counts, and statuses may still reach the model and may combine into identifying context. Prefer
+Private Intent whenever it can support the product flow.
 
 ## Evidence boundary
 
-| Demonstrated reproducibly                                                                       | Not demonstrated                                                                      |
-| ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Known roster names, supported phones/emails, and caller-declared values are replaced or blocked | Arbitrary free text contains no personal data                                         |
-| Alias table and outbound envelope are separate; capture tests inspect the wire body             | `S1` and `C1` are anonymous                                                           |
-| The model can request only `staff_on_shift`, `open_slots`, and `booking_stats`                  | The surrounding system has auth, tenant isolation, or consent                         |
-| Tool schemas have no DB access or writes; result serializers reject free text                   | Tool results remain entirely local                                                    |
-| URL, redirect, and error paths fail closed                                                      | Code can guarantee provider retention, training, cross-border, or subprocessor policy |
+| Demonstrated reproducibly                                                                        | Not demonstrated                                                      |
+| ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| Private Intent wire bodies contain only fixed prompts/schema/model settings and five enum fields | Kimi receives literally no metadata                                   |
+| Runtime rebuilding drops extra fields and blocks invalid enums before transport                  | The surrounding system has auth, tenant isolation, or consent         |
+| Official Kimi hostname, HTTPS:443, and redirect rejection are pinned                             | Provider retention, training, cross-border, or subprocessor behavior  |
+| Pseudonymized Context replaces known names/supported formats and scans the real wire body        | Arbitrary free text is anonymous or contains no unknown personal data |
+| Errors expose fixed codes rather than request/provider bodies                                    | Infrastructure, APM, proxies, or backups do not separately log data   |
 
-**Staff/service aliases, dates, time ranges, counts, and statuses from tool results may still be
-sent to the model.** See [PRIVACY_LIMITATIONS.md](docs/PRIVACY_LIMITATIONS.md) and
+See [PRIVACY_LIMITATIONS.md](docs/PRIVACY_LIMITATIONS.md) and
 [THREAT_MODEL.md](docs/THREAT_MODEL.md).
 
-## Verify in 30 seconds
+## Verify offline in 30 seconds
 
 Install [Deno 2](https://docs.deno.com/runtime/getting_started/installation/):
 
@@ -73,52 +128,30 @@ deno task verify
 deno task demo
 ```
 
-`verify` runs formatting, type, and offline tests. `demo` uses synthetic data and
-`CaptureTransport`; it makes no network request and prints no alias table, raw values, or API key.
-
-## Minimal integration
-
-```ts
-import { buildAliasTable, buildReadOnlyToolSchemas, prepareEgressEnvelopeV1 } from "./src/mod.ts";
-
-const aliasTable = buildAliasTable(
-  [{ id: "staff-1", displayName: "林範例" }],
-  [{ id: "customer-1", displayName: "陳測試" }],
-);
-
-const prepared = prepareEgressEnvelopeV1({
-  model: "kimi-k2.6",
-  systemPrompt: "Use opaque tokens.",
-  rawUserText: "林範例請聯絡陳測試，電話 0912-000-123",
-  aliasTable,
-  tools: buildReadOnlyToolSchemas({ staffTokens: ["S1"], serviceTokens: ["V1"] }),
-});
-```
-
-Keep the alias table only in trusted server-side state. Run tools inside the adopter's
-authentication and tenant boundary, then append a bounded result with `appendAliasedToolRoundTrip`.
-This repository deliberately has no database executor.
+`verify` runs formatting, type checks, and all offline tests. Coverage includes recognizable
+canaries, malicious extra fields, invalid enums, actual wire captures, endpoint allowlisting, and
+body-free errors. `demo` uses synthetic values and `CaptureTransport`; it makes no network request
+and does not retain API keys.
 
 ## Before production
 
-Passing tests does not authorize real user data. At minimum, complete:
+Zero-business-data mode greatly reduces the provider boundary, but it does not replace system or
+legal controls:
 
-- provider review for retention, training, location, subprocessors, and deletion;
-- privacy notice, lawful basis/consent, cross-border, and data-subject workflows;
-- alias-table encryption, access control, TTL/deletion, and backup policy;
-- authentication, tenant isolation, body-free logging, key rotation, and a kill switch.
+- authentication, tenant isolation, operation authorization, one-shot confirmation, and rate limits;
+- TLS, database/backup access, body-free logging, secret rotation, and a kill switch;
+- accurate privacy notices, lawful basis, cross-border, and data-subject workflows;
+- provider review for retention, training, location, subprocessors, and deletion.
 
 Kimi policies may change. Recheck [PROVIDER_DUE_DILIGENCE.md](docs/PROVIDER_DUE_DILIGENCE.md) before
 activation. This is not legal advice.
 
 ## Docs, security, and licence
 
-`src/` contains alias, envelope, provider, and tool boundaries; `tests/` provides fail-closed and
-wire-body evidence. Read [DATA_FLOW.md](docs/DATA_FLOW.md), [VERIFY.md](docs/VERIFY.md), and
-[SOURCE_MAPPING.md](docs/SOURCE_MAPPING.md).
-
-Use synthetic data for contributions and read [CONTRIBUTING.md](CONTRIBUTING.md). Report security
-issues privately through [SECURITY.md](SECURITY.md).
+Read [DATA_FLOW.md](docs/DATA_FLOW.md), [VERIFY.md](docs/VERIFY.md),
+[SOURCE_MAPPING.md](docs/SOURCE_MAPPING.md), and [CHANGELOG.md](CHANGELOG.md). Use synthetic data
+for contributions and read [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues privately
+through [SECURITY.md](SECURITY.md).
 
 Code and documentation use the [Apache License 2.0](LICENSE). BridgeTime and TokimiSpace names and
 logos are excluded; see [TRADEMARKS.md](TRADEMARKS.md). Kimi and Moonshot AI are third-party names;

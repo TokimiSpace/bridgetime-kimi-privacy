@@ -5,45 +5,49 @@ needed.
 
 ## Reproduce the checks
 
-With Deno 2 installed:
-
 ```bash
 deno task verify
-```
-
-This runs formatting verification, TypeScript checking, and the complete offline test suite.
-
-Then inspect the exact provider wire body:
-
-```bash
 deno task demo
 ```
 
-The demo uses `CaptureTransport`. Confirm that the output contains alias tokens (`S1`, `C1`, `P1`,
-`E1`) and does not contain the synthetic raw values present in `examples/synthetic_demo.ts`. The
-capture object has no API-key or authorization field.
+`verify` checks formatting, TypeScript, and the full offline suite. `demo` runs both modes through
+`CaptureTransport`; it makes no network request and does not retain an API key.
 
-## Most important tests
+## Private Intent evidence
 
-- `tests/envelope_test.ts`: explicitly iterates over every synthetic raw sensitive value and asserts
-  that none occurs in serialized `EgressEnvelopeV1`.
-- `tests/provider_test.ts`: inspects the actual wire body given to transport, tests exact host
-  validation, verifies a correctly paired assistant `tool_calls` + local `tool` result round trip,
-  confirms that captures omit the key, and proves error text cannot echo a provider body.
-- `tests/tools_test.ts`: checks the fixed read-only allowlist, absence of `merchantId`, and
-  rejection of arbitrary tool arguments, error codes, statuses, and free text in aliased results.
-- `tests/alias_test.ts`: covers normalization, pseudonymization, round-trip restoration,
-  immutability, and malformed tables.
+`tests/private_intent_test.ts` proves that:
 
-## Manual adversarial checks
+- a generated envelope has exactly `schema`, `action`, `entity`, `source`, and `stage`;
+- the returned object is frozen;
+- injected names, contact-shaped canaries, raw-message fields, and merchant values are stripped by
+  runtime reconstruction;
+- invalid enums and mismatched action/entity pairs fail before transport;
+- the captured wire body uses the pinned Kimi URL/model, disabled thinking, and 128-token cap;
+- the API key is absent from the captured artifact.
 
-Add a synthetic unsupported identifier to `declaredSensitiveLiterals`; the build must throw
-`PrivacyBoundaryError` before transport. Mutate a prepared envelope by inserting an email, Taiwan
-ID-shaped value, phone number, long digit run, or credential-shaped string; `sendEgressEnvelope`
-must block it on the second wire-level scan.
+Inspect the first object printed by `deno task demo`. Its user message is a serialized abstract
+enum, not raw text or a business value.
+
+## Pseudonymized Context evidence
+
+- `tests/envelope_test.ts` checks raw canaries against serialized `EgressEnvelopeV1`, post-prepare
+  mutation, residual patterns, and tool round trips.
+- `tests/provider_test.ts` checks exact-host HTTPS, redirect rejection, captured wire bodies, and
+  body-free provider errors.
+- `tests/tools_test.ts` checks the fixed read-only allowlist, absence of `merchantId`, canonical
+  arguments, and rejection of arbitrary free-text results.
+- `tests/alias_test.ts` covers normalization, reversible aliasing, immutability, and malformed
+  tables.
+
+## Manual review
+
+Review `src/private_intent.ts` and confirm no raw-text or business-value field exists. Then review
+`sendPrivateIntentEnvelope` and confirm every provider-visible field is either a constant or the
+canonical serializer output. Search for direct `JSON.stringify(input.envelope)` calls; none should
+exist on the Private Intent path.
 
 ## What a green run means
 
-A green run establishes the behavior of this repository at the checked commit. It does not attest to
-a live BridgeTime deployment, provider policy, surrounding server logs, or completeness of PII
-detection. See `PRIVACY_LIMITATIONS.md`.
+A green run establishes the checked repository behavior. It does not attest to live deployment,
+provider policy, authentication, surrounding logs, database isolation, or completeness of the older
+pseudonymization detectors. See `PRIVACY_LIMITATIONS.md`.

@@ -1,76 +1,89 @@
 # Data flow
 
-This document describes the reference package, not a claim about the current BridgeTime production
-deployment.
+This package offers two deliberately separate egress modes. An adopter should use Private Intent
+unless a product requirement genuinely needs model-visible language or aggregates. Neither mode is
+proof of a live BridgeTime deployment.
+
+## Mode A — Private Intent (recommended)
 
 ```mermaid
 sequenceDiagram
-  participant M as Merchant
-  participant S as BridgeTime server boundary
-  participant G as Egress guard
-  participant P as Kimi-compatible provider
+  participant U as User
+  participant S as Adopter server boundary
+  participant G as Runtime egress guard
+  participant P as Kimi
 
-  M->>S: Raw free text
-  S->>S: Normalize full-width and spacing
-  S->>S: Replace known names + supported phone/email
-  Note over S: Alias table remains server-side
-  S->>G: EgressEnvelopeV1 + server-side guard
-  G->>G: Scan declared literals and detectable patterns
-  alt residual found
+  U->>S: Raw chat + merchant values
+  S->>S: Parse intent locally
+  S->>S: Authenticate, query, validate, preview locally
+  S->>G: PrivateIntentEnvelopeV1
+  G->>G: Validate enum pair and rebuild five fields
+  alt invalid envelope
     G-->>S: PrivacyBoundaryError (no excerpt)
-  else clean
-    G->>P: HTTPS POST to exact allowlisted host
-    P-->>S: Model response
+  else valid
+    G->>P: Fixed prompt + tool + abstract enum
+    P-->>S: Untrusted generic routing response
+    S->>S: Ignore data-bearing output; authorize/write locally
   end
 ```
 
-## 1. Server-side inputs
+### Local-only inputs
 
-The caller supplies a per-conversation alias table built from a known staff/customer roster. Staff
-receive `S1..Sn`; customer order is shuffled and receives `C1..Cn`. The table contains reversible
-values and is therefore sensitive server-side state.
+The raw message and all business values must remain local: merchant identity and label, person and
+service names, internal IDs, counts, schedules, dates, times, timezone, and conversation history.
+The package intentionally has no raw-text parser, database executor, tenant selector, or write tool.
 
-Free text is normalized, then supported Taiwan mobile/landline values become `P` tokens and email
-addresses become `E` tokens. Known names are replaced longest-first. The alias table is returned
-separately and is never a field of `EgressEnvelopeV1`.
+### Provider-visible request
 
-## 2. Envelope
+`sendPrivateIntentEnvelope` emits only:
 
-`EgressEnvelopeV1` contains only:
+- the pinned model `kimi-k2.6`, disabled thinking, and a 128-token output cap;
+- a fixed system message that states the hidden values are unavailable;
+- a fixed generic `choose_dialogue_strategy` schema;
+- a canonical five-field `PrivateIntentEnvelopeV1`.
 
-- a model identifier and fixed purpose;
-- controlled system text, previously aliased history, and the newly aliased user message;
-- fixed read-only tool schemas;
-- non-sensitive metadata naming the pseudonymization and fail-closed policy.
+The five fields are `schema`, `action`, `entity`, `source`, and `stage`. Allowed action/entity pairs
+are fixed. Before serialization, the runtime guard reconstructs a new object from those fields.
+Unexpected properties are discarded; invalid enums block transport.
 
-The model can still see business context represented in the envelope, including dates, counts,
-status codes, time ranges, opaque staff/service tokens, and the semantic content that remains after
-masking. Data minimization does not mean “no data.”
+The provider learns the API account, connection timing, and an abstract operation class such as
+`create/staff`. “Zero business data” does not mean zero metadata.
 
-## 3. Read-only tool round trip
+### Local outcome
 
-This repo does not query a database. A validated provider `tool_call` is restricted to a fixed tool
-name, bounded call ID, allowlisted argument keys and schema-listed tokens. An adopter executes that
-tool inside its authenticated boundary. `appendAliasedToolRoundTrip` then adds the assistant
-`tool_calls` message and the matching local `tool` result together, so the provider never receives
-an orphan tool message. The result serializer accepts dates, counts, minute ranges, fixed status
-codes, and `S`/`V` tokens. It rejects arbitrary display names, service names, IDs, error text, or
-free-text statuses.
+The provider response is not returned as trusted business content. Authentication, tenant selection,
+relationship checks, previews, confirmation tokens, and writes belong to the adopter's server. A
+Kimi failure should not weaken those controls.
 
-## 4. Final egress checks
+## Mode B — Pseudonymized Context (advanced)
 
-The envelope and the provider wire body are both scanned. The scan blocks:
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant S as Adopter server boundary
+  participant G as Egress scanner
+  participant P as Kimi-compatible provider
 
-- any value in the alias table or explicit `declaredSensitiveLiterals`;
-- recognizable email, supported Taiwan phone, Taiwan national-ID shape, long digit run, or
-  credential shape.
+  U->>S: Raw free text
+  S->>S: Normalize and alias known values
+  Note over S: Reversible alias table remains local
+  S->>G: EgressEnvelopeV1 + guard
+  G->>G: Scan literals and detectable patterns
+  alt residual found
+    G-->>S: PrivacyBoundaryError (no excerpt)
+  else clean
+    G->>P: Aliased messages and bounded tool data
+    P-->>S: Untrusted response or tool call
+  end
+```
 
-Detection codes may be logged; snippets and raw bodies must not be logged. The scan has no bypass
-flag. If it finds a value, transport is not called.
+This mode can expose semantic content, dates, counts, statuses, time ranges, and opaque
+staff/service tokens. The alias table is reversible sensitive state. See `PRIVACY_LIMITATIONS.md`
+before using it.
 
-## 5. Transport
+## Shared transport boundary
 
-The endpoint must use HTTPS, have no credentials/query/fragment, use port 443 (or the default), and
-match an allowed hostname exactly. The included Kimi allowlist is `api.moonshot.ai`; adopters must
-review any change to it. `FetchTransport` sets `redirect: "error"`, so a 3xx response cannot forward
-the authorization header or request body to a second hostname.
+The endpoint must use HTTPS, have no credentials/query/fragment, use port 443, and match an allowed
+hostname exactly. The Kimi allowlist is `api.moonshot.ai`. `FetchTransport` sets
+`redirect: "error"`, preventing a redirect from forwarding the authorization header or body.
+Provider bodies and request excerpts are never included in exported error metadata.
