@@ -31,7 +31,7 @@ separated modes:
 
 > [!IMPORTANT]
 > As of **2026-08-28**, BridgeTime source includes the Private Intent architecture at private commit
-> `e0426d372ebafb9732ec139709c9ded002a1a9ff`. Live activation still depends on deployment
+> `68dbb144aa074a696842cbdea5e3205d8bdb05e9`. Live activation still depends on deployment
 > configuration and `LLM_API_KEY`; this repository is not proof of production deployment or provider
 > policy.
 
