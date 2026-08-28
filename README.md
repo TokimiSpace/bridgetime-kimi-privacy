@@ -30,7 +30,7 @@
 
 > [!IMPORTANT]
 > 截至 **2026-08-28**，BridgeTime source 已在 private commit
-> `3b73db2388e118d9ea2bc82e39a5ad31ec820b03` 導入 Private Intent 架構。實際網站是否啟用仍由部署環境
+> `e0426d372ebafb9732ec139709c9ded002a1a9ff` 導入 Private Intent 架構。實際網站是否啟用仍由部署環境
 > 與 `LLM_API_KEY` 決定；本 repo 不是 production deployment 或供應商政策的證明。
 
 ## 推薦：零商家資料模式
