@@ -46,8 +46,8 @@ Prefer Private Intent whenever product behavior can be implemented locally.
 
 ## Production and provider boundaries
 
-As of 2026-08-27, the private BridgeTime source includes Private Intent at commit
-`b62f84f90a7e5d300198af897ea1c7989d6944d8`. This does not prove a live deployment, runtime
+As of 2026-08-28, the private BridgeTime source includes Private Intent at commit
+`215850f1469269c70bd58498272e219f5f8db45c`. This does not prove a live deployment, runtime
 configuration, provider agreement, logging policy, or surrounding infrastructure.
 
 Provider-side retention, training, contract, data-location, account, and network-metadata questions

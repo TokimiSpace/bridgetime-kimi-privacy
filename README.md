@@ -29,14 +29,18 @@
 | Pseudonymized Context      | 別名化訊息、代號、日期、時段與彙總 | 必須由模型閱讀語意或工具結果的實驗      | 仍有重識別風險 |
 
 > [!IMPORTANT]
-> 截至 **2026-08-27**，BridgeTime source 已在 private commit
-> `b62f84f90a7e5d300198af897ea1c7989d6944d8` 導入 Private Intent 架構。實際網站是否啟用仍由部署環境
+> 截至 **2026-08-28**，BridgeTime source 已在 private commit
+> `215850f1469269c70bd58498272e219f5f8db45c` 導入 Private Intent 架構。實際網站是否啟用仍由部署環境
 > 與 `LLM_API_KEY` 決定；本 repo 不是 production deployment 或供應商政策的證明。
 
 ## 推薦：零商家資料模式
 
 原始對話、姓名、商家／服務名稱、內部 ID、數量、日期、時間、時區與歷史訊息都留在採用者自己的 server
 boundary。自然語言判讀、資料庫查詢、權限檢查、預覽與寫入也都在本機完成。
+
+採用者若在聊天輸入框提供關鍵字或完整句型小抄，應直接把已驗證的固定文字包在前端：展開說明不能送出
+訊息、填入指令、寫入資料或呼叫 provider，範例也不應做成一鍵執行按鈕。提示需明確要求使用者不要輸入
+PIN、邀請憑證、顧客姓名、電話或其他個資。
 
 Kimi 只收到這種固定 envelope：
 

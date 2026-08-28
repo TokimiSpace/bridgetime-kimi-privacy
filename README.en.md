@@ -30,8 +30,8 @@ separated modes:
 | Pseudonymized Context            | Aliased text, tokens, dates, time ranges, and aggregates | Experiments that require model-visible semantics or tool results | Re-identification risk remains |
 
 > [!IMPORTANT]
-> As of **2026-08-27**, BridgeTime source includes the Private Intent architecture at private commit
-> `b62f84f90a7e5d300198af897ea1c7989d6944d8`. Live activation still depends on deployment
+> As of **2026-08-28**, BridgeTime source includes the Private Intent architecture at private commit
+> `215850f1469269c70bd58498272e219f5f8db45c`. Live activation still depends on deployment
 > configuration and `LLM_API_KEY`; this repository is not proof of production deployment or provider
 > policy.
 
@@ -40,6 +40,12 @@ separated modes:
 Raw chat, names, merchant/service labels, internal IDs, counts, dates, times, timezone, and history
 remain inside the adopter's server boundary. Natural-language interpretation, database queries,
 authorization, previews, and writes also happen locally.
+
+If an adopter exposes a keyword or exact-sentence cheat sheet beside chat input, bundle its verified
+static text in the client. Opening the guide must not submit or fill a command, write data, or call
+a provider, and examples should not become one-click execution controls. The guide should explicitly
+tell users not to enter PINs, invitation credentials, customer names, phone numbers, or other
+personal data.
 
 Kimi receives only a fixed envelope such as:
 
